@@ -9,6 +9,8 @@ Apple-BR is a fast, native macOS app that opens local iPhone backups (encrypted 
 ![Language](https://img.shields.io/badge/language-Swift%20%2F%20SwiftUI-orange)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
 
+![Apple-BR browsing photos from an iPhone backup](docs/screenshot.png)
+
 ## Download
 
 A prebuilt version is included — no build tools required:
