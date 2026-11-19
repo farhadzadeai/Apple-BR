@@ -84,6 +84,7 @@ struct PhotosView: View {
     @State private var cell: CGFloat = 118
     @State private var selection = Set<Int64>()
     @State private var quickLook: PhotoAsset?
+    @State private var keyMonitor: Any?
 
     var body: some View {
         ZStack {
@@ -105,11 +106,6 @@ struct PhotosView: View {
             if let asset = quickLook {
                 QuickLookView(backup: backup, asset: asset) { quickLook = nil }
                     .transition(.opacity)
-            } else {
-                Button("Quick Look") { openQuickLook() }
-                    .keyboardShortcut(.space)
-                    .hidden()
-                    .accessibilityHidden(true)
             }
         }
         .animation(.easeOut(duration: 0.15), value: quickLook != nil)
@@ -129,12 +125,33 @@ struct PhotosView: View {
             selection = []
             regroup()
         }
+        .onAppear(perform: installKeyMonitor)
+        .onDisappear(perform: removeKeyMonitor)
     }
 
-    private func openQuickLook() {
-        guard selection.count == 1, let id = selection.first,
-              let asset = groups.flatMap(\.assets).first(where: { $0.id == id }) else { return }
-        quickLook = asset
+    private func installKeyMonitor() {
+        let selection = $selection, groups = $groups, quickLook = $quickLook
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let isSpace = event.keyCode == 49
+            let isEsc = event.keyCode == 53
+            guard isSpace || isEsc,
+                  event.modifierFlags.intersection([.command, .option, .control]).isEmpty else { return event }
+            if quickLook.wrappedValue != nil {
+                guard isSpace || isEsc else { return event }
+                quickLook.wrappedValue = nil
+                return nil
+            }
+            guard isSpace,
+                  selection.wrappedValue.count == 1, let id = selection.wrappedValue.first,
+                  let asset = groups.wrappedValue.flatMap(\.assets).first(where: { $0.id == id }) else { return event }
+            quickLook.wrappedValue = asset
+            return nil
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
     }
 
     private func regroup() {
@@ -380,9 +397,6 @@ struct QuickLookView: View {
                 .padding(.bottom, 10)
             }
             .padding(.top, 6)
-
-            Button("Close") { onClose() }.keyboardShortcut(.cancelAction).hidden().accessibilityHidden(true)
-            Button("Close") { onClose() }.keyboardShortcut(.space).hidden().accessibilityHidden(true)
         }
         .task {
             let backup = backup, asset = asset

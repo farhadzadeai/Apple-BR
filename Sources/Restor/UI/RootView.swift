@@ -197,11 +197,12 @@ struct SidebarView: View {
 
             Divider().opacity(0.4)
             Button {
+                NSApp.activate(ignoringOtherApps: true)
                 openWindow(id: "about")
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "info.circle").foregroundStyle(Theme.dim).frame(width: 20)
-                    Text("About Restor").foregroundStyle(Theme.dim)
+                    Text("About Farhadzadeai").foregroundStyle(Theme.dim)
                     Spacer()
                 }
                 .font(.callout)

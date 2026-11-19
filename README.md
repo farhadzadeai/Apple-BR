@@ -34,7 +34,7 @@ Restor is a fast, native macOS app that opens local iPhone backups (encrypted or
 No external dependencies — just the Swift toolchain and Command Line Tools.
 
 ```bash
-git clone https://github.com/MFarhadzade/restor.git
+git clone https://github.com/farhadzadeai/Apple-BR.git
 cd restor
 ./build.sh
 open build/Restor.app
@@ -57,4 +57,4 @@ open build/Restor.app
 
 ## Author
 
-**Mohammad Farhadzade** — [en.farhadzadeh@gmail.com](mailto:en.farhadzadeh@gmail.com)
+**Farhadzadeai** — [farhadzadeai@gmail.com](mailto:farhadzadeai@gmail.com) · [Instagram](https://instagram.com/Farhadzade.ai) · [GitHub](https://github.com/farhadzadeai/Apple-BR)
