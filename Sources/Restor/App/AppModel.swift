@@ -82,13 +82,11 @@ final class AppModel {
 
     func refresh() {
         var found: [BackupInfo] = []
-        if ProcessInfo.processInfo.environment["RESTOR_NO_DEFAULT"] == nil {
-            do {
-                found = try BackupInfo.discover(in: BackupInfo.defaultDirectory)
-                accessDenied = false
-            } catch {
-                accessDenied = (error as NSError).code == NSFileReadNoPermissionError
-            }
+        do {
+            found = try BackupInfo.discover(in: BackupInfo.defaultDirectory)
+            accessDenied = false
+        } catch {
+            accessDenied = (error as NSError).code == NSFileReadNoPermissionError
         }
         for entry in storedBookmarks() {
             guard let url = resolveBookmark(entry) else { continue }
@@ -154,9 +152,6 @@ final class AppModel {
         backup = nil
         selected = info
         pane = .overview
-        if let raw = ProcessInfo.processInfo.environment["RESTOR_PANE"], let pane = Pane(rawValue: raw) {
-            self.pane = pane
-        }
         passwordError = nil
         openError = nil
         if !info.isEncrypted { open(password: nil) }
