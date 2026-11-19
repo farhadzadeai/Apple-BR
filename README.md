@@ -1,12 +1,25 @@
-# Restor
+# Apple-BR
 
 **Browse, search and export everything inside your iPhone backups — natively on macOS.**
 
-Restor is a fast, native macOS app that opens local iPhone backups (encrypted or not), decrypts them on-device, and lets you explore every category of data the way Apple's own apps would — photos, messages, contacts, calls, notes, Safari data, apps and the raw file tree — then export whatever you need.
+Apple-BR is a fast, native macOS app that opens local iPhone backups (encrypted or not), decrypts them on-device, and lets you explore every category of data the way Apple's own apps would — photos, messages, contacts, calls, notes, Safari data, apps and the raw file tree — then export whatever you need.
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2014+-black)
+![Chip](https://img.shields.io/badge/chip-Apple%20Silicon%20arm64-blue)
 ![Language](https://img.shields.io/badge/language-Swift%20%2F%20SwiftUI-orange)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
+
+## Download
+
+A prebuilt version is included — no build tools required:
+
+- **[Apple-BR-v1.0.zip](dist/Apple-BR-v1.0.zip)** — macOS 14+, Apple Silicon (arm64), ~2 MB, zero dependencies
+
+The app is ad-hoc signed (not notarized), so the first launch may be blocked by Gatekeeper:
+
+1. Unzip the archive and move `Restor.app` to **Applications** (or anywhere).
+2. **Right-click** the app → **Open** → click **Open** again.
+   — or run `xattr -dr com.apple.quarantine /Applications/Restor.app` in Terminal.
 
 ## Features
 
@@ -26,8 +39,9 @@ Restor is a fast, native macOS app that opens local iPhone backups (encrypted or
 
 ## Requirements
 
-- macOS 14 (Sonoma) or later
+- macOS 14 (Sonoma) or later, **Apple Silicon (arm64)**
 - An iPhone backup created by Finder (or iTunes on older macOS)
+- For building from source: the Swift toolchain + Command Line Tools (no Xcode required)
 
 ## Build from source
 
@@ -35,17 +49,17 @@ No external dependencies — just the Swift toolchain and Command Line Tools.
 
 ```bash
 git clone https://github.com/farhadzadeai/Apple-BR.git
-cd restor
+cd Apple-BR
 ./build.sh
 open build/Restor.app
 ```
 
-`build.sh` compiles a release binary, generates the app icon, writes `Info.plist` and produces a signed `build/Restor.app`.
+`build.sh` compiles a release binary, strips symbols, generates the app icon, writes `Info.plist` and produces a signed `build/Restor.app`.
 
 ## Usage
 
 1. Back up your iPhone with Finder (**Encrypt local backup** is optional — both work).
-2. Launch Restor. It lists backups automatically, or use **Choose Backup Folder…** / drag a `.backup` onto the window.
+2. Launch the app. It lists backups automatically, or use **Choose Backup Folder…** / drag a `.backup` onto the window.
 3. For encrypted backups, enter the backup password.
 4. Pick a category in the sidebar, browse, and use **Export** when you need the data out.
 

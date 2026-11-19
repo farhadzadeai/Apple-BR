@@ -7,6 +7,7 @@ APP="build/Restor.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$(swift build -c release --show-bin-path)/Restor" "$APP/Contents/MacOS/Restor"
+strip -x "$APP/Contents/MacOS/Restor" 2>/dev/null || true
 
 if [ ! -f build/AppIcon.icns ]; then
     swift Scripts/icon.swift build/AppIcon.iconset
