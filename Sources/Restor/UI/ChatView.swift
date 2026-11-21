@@ -44,6 +44,8 @@ struct ChatView: View {
             }
         }
         .task {
+            Diag.log("chat load start pane=\(pane.rawValue)") // TEMP-DIAG
+            let started = Date() // TEMP-DIAG
             let backup = backup, make = make
             let loaded = await Task.detached { () -> (ChatSource, [Conversation]) in
                 let source = make(backup)
@@ -52,6 +54,7 @@ struct ChatView: View {
             source = loaded.0
             conversations = loaded.1
             selection = loaded.1.first?.id
+            Diag.log("chat conversations loaded pane=\(pane.rawValue) n=\(loaded.1.count) ms=\(Int(Date().timeIntervalSince(started) * 1000))") // TEMP-DIAG
         }
         .task(id: selection) {
             guard let source, let conversation = selected else {
@@ -194,8 +197,6 @@ struct AttachmentView: View {
     let attachment: ChatAttachment
     @State private var image: NSImage?
 
-    private var resolved: (domain: String, path: String)? { backup.resolveMedia(attachment.domain, attachment.path) }
-
     var body: some View {
         Button(action: open) {
             if let image {
@@ -210,16 +211,15 @@ struct AttachmentView: View {
         }
         .buttonStyle(.plain)
         .task(id: attachment) {
-            guard attachment.isImage || attachment.isVideo, let target = resolved else { return }
-            image = await backup.thumbnails.image(domain: target.domain, path: target.path, maxPixel: 480)
+            guard attachment.isImage || attachment.isVideo else { return }
+            image = await backup.thumbnails.image(domain: attachment.domain, path: attachment.path, maxPixel: 480)
         }
     }
 
     private func open() {
         let backup = backup
         Task {
-            guard let target = resolved,
-                  let url = await Task.detached(operation: { backup.localURL(target.domain, target.path, materialize: backup.isEncrypted) }).value else {
+            guard let url = await Task.detached(operation: { backup.localURL(attachment.domain, attachment.path, materialize: backup.isEncrypted) }).value else {
                 NSSound.beep()
                 return
             }

@@ -3,6 +3,7 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Diag.install() // TEMP-DIAG
         try? FileManager.default.removeItem(at: Backup.cacheRoot)
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
