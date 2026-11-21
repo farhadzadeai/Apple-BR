@@ -48,6 +48,10 @@ struct AboutView: View {
                 }
             }
             .font(.callout)
+            Button("Open Diagnostics Log") { // TEMP-DIAG
+                NSWorkspace.shared.activateFileViewerSelecting([Diag.fileURL])
+            }
+            .font(.caption)
             Text("Made with SwiftUI · Works entirely on this Mac")
                 .font(.caption2).foregroundStyle(.quaternary)
         }

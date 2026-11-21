@@ -49,6 +49,7 @@ final class SMSSource: ChatSource, @unchecked Sendable {
 
     func conversations() -> [Conversation] {
         guard let db else { return [] }
+        let started = Date() // TEMP-DIAG
         let sql = """
             SELECT c.ROWID AS id, c.chat_identifier AS ident, c.display_name AS name, c.service_name AS service, l.text AS text, l.body AS body, l.d AS last
             FROM chat c LEFT JOIN (
@@ -57,7 +58,7 @@ final class SMSSource: ChatSource, @unchecked Sendable {
             ) l ON l.cid = c.ROWID
             WHERE l.d IS NOT NULL ORDER BY l.d DESC
             """
-        return db.rows(sql).compactMap { row in
+        let result: [Conversation] = db.rows(sql).compactMap { row in
             guard let id = row.int("id") else { return nil }
             let ident = row.string("ident") ?? ""
             let name = row.string("name") ?? ""
@@ -67,10 +68,13 @@ final class SMSSource: ChatSource, @unchecked Sendable {
                                 service: row.string("service") ?? "", lastDate: appleDate(row.double("last")),
                                 snippet: snippet.isEmpty ? "Attachment" : snippet)
         }
+        Diag.log("sms conversations n=\(result.count) ms=\(Int(Date().timeIntervalSince(started) * 1000))") // TEMP-DIAG
+        return result
     }
 
     func messages(in conversation: Conversation) -> [ChatMessage] {
         guard let db else { return [] }
+        let started = Date() // TEMP-DIAG
         var attachments: [Int64: [ChatAttachment]] = [:]
         let attachmentSQL = """
             SELECT maj.message_id AS mid, a.filename AS file, a.mime_type AS mime, a.transfer_name AS name
@@ -81,7 +85,8 @@ final class SMSSource: ChatSource, @unchecked Sendable {
             guard let mid = row.int("mid"), var file = row.string("file") else { continue }
             if file.hasPrefix("~/") { file = String(file.dropFirst(2)) }
             else if let range = file.range(of: "/var/mobile/") { file = String(file[range.upperBound...]) }
-            attachments[mid, default: []].append(ChatAttachment(domain: "MediaDomain", path: file,
+            let resolved = backup.resolveMedia("MediaDomain", file) ?? (domain: "MediaDomain", path: file)
+            attachments[mid, default: []].append(ChatAttachment(domain: resolved.domain, path: resolved.path,
                                                                 name: row.string("name") ?? (file as NSString).lastPathComponent,
                                                                 mime: row.string("mime") ?? ""))
         }
@@ -90,7 +95,7 @@ final class SMSSource: ChatSource, @unchecked Sendable {
             FROM chat_message_join j JOIN message m ON m.ROWID = j.message_id LEFT JOIN handle h ON h.ROWID = m.handle_id
             WHERE j.chat_id = ? ORDER BY m.date
             """
-        return db.rows(sql, [conversation.id]).compactMap { row in
+        let result: [ChatMessage] = db.rows(sql, [conversation.id]).compactMap { row in
             guard let id = row.int("id") else { return nil }
             var text = clean(row.string("text"))
             if text.isEmpty { text = clean(decodeAttributedBody(row.data("body"))) }
@@ -100,16 +105,30 @@ final class SMSSource: ChatSource, @unchecked Sendable {
             return ChatMessage(id: id, text: text, date: appleDate(row.double("date")), readDate: appleDate(row.double("readdate")),
                                fromMe: row.bool("me"), sender: backup.contactName(for: sender) ?? sender, attachments: files)
         }
+        Diag.log("sms messages conv=\(conversation.id) n=\(result.count) ms=\(Int(Date().timeIntervalSince(started) * 1000))") // TEMP-DIAG
+        return result
     }
 }
 
 final class WhatsAppSource: ChatSource, @unchecked Sendable {
+    private let backup: Backup
     private let domain: String
     private let db: SQLiteDB?
 
     init(backup: Backup, business: Bool) {
+        self.backup = backup
         domain = business ? "AppDomainGroup-group.net.whatsapp.WhatsAppSMB.shared" : "AppDomainGroup-group.net.whatsapp.WhatsApp.shared"
         db = backup.database(domain, "ChatStorage.sqlite")
+        if let db {
+            let started = Date() // TEMP-DIAG
+            if db.hasTable("ZWAMESSAGE") {
+                _ = db.rows("CREATE INDEX IF NOT EXISTS idx_zwasession ON ZWAMESSAGE(ZCHATSESSION)")
+            }
+            if db.hasTable("ZWAMEDIAITEM") {
+                _ = db.rows("CREATE INDEX IF NOT EXISTS idx_zwamedia ON ZWAMEDIAITEM(ZMESSAGE)")
+            }
+            Diag.log("whatsapp indexes ready in \(Int(Date().timeIntervalSince(started) * 1000))ms") // TEMP-DIAG
+        }
     }
 
     var isAvailable: Bool { db != nil }
@@ -121,21 +140,25 @@ final class WhatsAppSource: ChatSource, @unchecked Sendable {
 
     func conversations() -> [Conversation] {
         guard let db else { return [] }
+        let started = Date() // TEMP-DIAG
         let cols = db.columns("ZWACHATSESSION")
         let text = cols.contains("ZLASTMESSAGETEXT") ? "s.ZLASTMESSAGETEXT" : "(SELECT m.ZTEXT FROM ZWAMESSAGE m WHERE m.Z_PK = s.ZLASTMESSAGE)"
         let filter = cols.contains("ZREMOVED") ? "AND IFNULL(s.ZREMOVED, 0) = 0" : ""
         let sql = "SELECT s.Z_PK AS id, s.ZCONTACTJID AS jid, s.ZPARTNERNAME AS name, s.ZLASTMESSAGEDATE AS last, \(text) AS text FROM ZWACHATSESSION s WHERE s.ZCONTACTJID IS NOT NULL \(filter) ORDER BY s.ZLASTMESSAGEDATE DESC"
-        return db.rows(sql).compactMap { row in
+        let result: [Conversation] = db.rows(sql).compactMap { row in
             guard let id = row.int("id") else { return nil }
             let jid = row.string("jid") ?? ""
             let name = row.string("name") ?? ""
             return Conversation(id: id, title: name.isEmpty ? handle(jid) : name, identifier: handle(jid),
                                 service: jid.hasSuffix("@g.us") ? "Group" : "WhatsApp", lastDate: appleDate(row.double("last")), snippet: clean(row.string("text")))
         }
+        Diag.log("whatsapp conversations n=\(result.count) ms=\(Int(Date().timeIntervalSince(started) * 1000))") // TEMP-DIAG
+        return result
     }
 
     func messages(in conversation: Conversation) -> [ChatMessage] {
         guard let db else { return [] }
+        let started = Date() // TEMP-DIAG
         let memberCols = db.columns("ZWAGROUPMEMBER")
         let hasMembers = memberCols.contains("ZCONTACTNAME") && db.columns("ZWAMESSAGE").contains("ZGROUPMEMBER")
         let sql = """
@@ -146,13 +169,14 @@ final class WhatsAppSource: ChatSource, @unchecked Sendable {
             WHERE m.ZCHATSESSION = ? ORDER BY m.ZMESSAGEDATE
             """
         var seen = Set<Int64>()
-        return db.rows(sql, [conversation.id]).compactMap { row in
+        let result: [ChatMessage] = db.rows(sql, [conversation.id]).compactMap { row in
             guard let id = row.int("id"), seen.insert(id).inserted else { return nil }
             var text = clean(row.string("text"))
             var files: [ChatAttachment] = []
             if let media = row.string("media"), !media.isEmpty {
                 let path = media.hasPrefix("Message/") ? media : "Message/" + media
-                files.append(ChatAttachment(domain: domain, path: path, name: (media as NSString).lastPathComponent, mime: ""))
+                let resolved = backup.resolveMedia(domain, path) ?? (domain: domain, path: path)
+                files.append(ChatAttachment(domain: resolved.domain, path: resolved.path, name: (media as NSString).lastPathComponent, mime: ""))
                 if text.isEmpty { text = clean(row.string("caption")) }
             }
             guard !text.isEmpty || !files.isEmpty else { return nil }
@@ -161,5 +185,7 @@ final class WhatsAppSource: ChatSource, @unchecked Sendable {
             return ChatMessage(id: id, text: text, date: appleDate(row.double("date")), readDate: nil, fromMe: row.bool("me"),
                                sender: sender.isEmpty ? handle(row.string("jid")) : sender, attachments: files)
         }
+        Diag.log("whatsapp messages conv=\(conversation.id) n=\(result.count) ms=\(Int(Date().timeIntervalSince(started) * 1000))") // TEMP-DIAG
+        return result
     }
 }

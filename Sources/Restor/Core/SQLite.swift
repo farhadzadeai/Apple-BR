@@ -58,6 +58,7 @@ final class SQLiteDB: @unchecked Sendable {
     deinit { sqlite3_close(handle) }
 
     func query(_ sql: String, _ params: [Any?] = []) throws -> [Row] {
+        let started = Date() // TEMP-DIAG
         lock.lock()
         defer { lock.unlock() }
         var stmt: OpaquePointer?
@@ -93,6 +94,10 @@ final class SQLiteDB: @unchecked Sendable {
                 }
             }
             rows.append(Row(values: values))
+        }
+        let elapsed = Date().timeIntervalSince(started) * 1000 // TEMP-DIAG
+        if elapsed > 500 {
+            Diag.log("slow query \(Int(elapsed))ms rows=\(rows.count) sql=\(sql.prefix(140))")
         }
         return rows
     }

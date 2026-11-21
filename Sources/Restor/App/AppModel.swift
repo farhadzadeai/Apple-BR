@@ -34,7 +34,9 @@ final class AppModel {
     var backups: [BackupInfo] = []
     var selected: BackupInfo?
     var backup: Backup?
-    var pane: Pane = .overview
+    var pane: Pane = .overview {
+        didSet { Diag.log("pane → \(pane.rawValue)") } // TEMP-DIAG
+    }
     var isOpening = false
     var passwordError: String?
     var openError: String?
@@ -148,6 +150,7 @@ final class AppModel {
     }
 
     func select(_ info: BackupInfo) {
+        Diag.log("select backup: \(info.deviceName) encrypted=\(info.isEncrypted)") // TEMP-DIAG
         UserDefaults.standard.set(info.url.path, forKey: lastBackupKey)
         backup = nil
         selected = info
@@ -159,6 +162,8 @@ final class AppModel {
 
     func open(password: String?) {
         guard let info = selected, !isOpening else { return }
+        Diag.log("open start: \(info.deviceName)") // TEMP-DIAG
+        let started = Date() // TEMP-DIAG
         isOpening = true
         passwordError = nil
         openError = nil
@@ -167,8 +172,11 @@ final class AppModel {
             isOpening = false
             guard selected == info else { return }
             switch result {
-            case .success(let opened): backup = opened
+            case .success(let opened):
+                backup = opened
+                Diag.log("open ok in \(Int(Date().timeIntervalSince(started) * 1000))ms") // TEMP-DIAG
             case .failure(let error):
+                Diag.log("open failed in \(Int(Date().timeIntervalSince(started) * 1000))ms: \(error.localizedDescription)") // TEMP-DIAG
                 if info.isEncrypted { passwordError = error.localizedDescription } else { openError = error.localizedDescription }
             }
         }

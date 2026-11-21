@@ -119,6 +119,8 @@ final class Backup: @unchecked Sendable {
     static let cacheRoot = FileManager.default.temporaryDirectory.appendingPathComponent("Restor")
 
     init(info: BackupInfo, password: String?) throws {
+        Diag.log("backup init start: \(info.deviceName) encrypted=\(info.isEncrypted)") // TEMP-DIAG
+        let initStart = Date() // TEMP-DIAG
         self.info = info
         let fm = FileManager.default
         cacheDir = Self.cacheRoot.appendingPathComponent(UUID().uuidString)
@@ -151,10 +153,14 @@ final class Backup: @unchecked Sendable {
             }
             manifest = try SQLiteDB(path: local.path)
             guard manifest.hasTable("Files") else { throw BackupError.invalid("Manifest.db has no file index") }
+            let indexStart = Date() // TEMP-DIAG
+            _ = manifest.rows("CREATE INDEX IF NOT EXISTS FilesDomainPath ON Files(domain, relativePath)")
+            Diag.log("manifest domain/path index ready in \(Int(Date().timeIntervalSince(indexStart) * 1000))ms") // TEMP-DIAG
         } catch {
             try? fm.removeItem(at: cacheDir)
             throw error
         }
+        Diag.log("backup init done in \(Int(Date().timeIntervalSince(initStart) * 1000))ms") // TEMP-DIAG
     }
 
     deinit { try? FileManager.default.removeItem(at: cacheDir) }
@@ -204,6 +210,11 @@ final class Backup: @unchecked Sendable {
     }
 
     func extract(_ entry: ManifestEntry, to destination: URL) throws {
+        let started = Date() // TEMP-DIAG
+        defer {
+            let ms = Int(Date().timeIntervalSince(started) * 1000)
+            if ms > 500 { Diag.log("slow extract \(ms)ms \(entry.domain)/\(entry.path)") } // TEMP-DIAG
+        }
         let fm = FileManager.default
         let source = sourceURL(entry.fileID)
         guard fm.fileExists(atPath: source.path) else { throw BackupError.missingFile(entry.path) }
@@ -253,7 +264,10 @@ final class Backup: @unchecked Sendable {
             if !FileManager.default.fileExists(atPath: wal.path), let walEntry = self.entry(domain, path + "-wal") {
                 try? extract(walEntry, to: wal)
             }
+            let started = Date() // TEMP-DIAG
             db = try? SQLiteDB(path: url.path)
+            let bytes = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
+            Diag.log("db open \(domain)/\(path) bytes=\(bytes) ms=\(Int(Date().timeIntervalSince(started) * 1000)) ok=\(db != nil)") // TEMP-DIAG
         }
         databases[key] = db
         return db
