@@ -212,6 +212,32 @@ final class AppModel {
         }
     }
 
+    func airdrop(_ title: String, _ work: @escaping @Sendable (ProgressHandler) throws -> [URL]) {
+        guard job == nil else { return }
+        let job = Job(title: title)
+        self.job = job
+        let flag = job.flag
+        let handler: ProgressHandler = { fraction, detail in
+            Task { @MainActor in
+                job.fraction = fraction
+                job.detail = detail
+            }
+            return !flag.isCancelled
+        }
+        Task {
+            let result = await Task.detached(priority: .userInitiated) { Result { try work(handler) } }.value
+            self.job = nil
+            switch result {
+            case .success(let urls) where !urls.isEmpty:
+                AirDrop.share(urls)
+            case .success:
+                notice = "No files were ready to share."
+            case .failure(let error):
+                if !(error is ExportCancelled) { notice = error.localizedDescription }
+            }
+        }
+    }
+
     func exportAll() {
         guard let backup, let folder = Panels.chooseFolder() else { return }
         let root = Exporter.uniqueURL(in: folder, name: Exporter.safeName(backup.info.deviceName) + " Export")

@@ -95,6 +95,11 @@ struct PhotosView: View {
                     Image(systemName: "photo").foregroundStyle(Theme.dim)
                     ExportButton(title: selection.isEmpty ? "Export All" : "Export Selected", action: export)
                         .disabled(visibleCount == 0)
+                    Button { airdrop() } label: {
+                        Label("AirDrop", systemImage: "antenna.radiowaves.left.and.right")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(visibleCount == 0)
                 }
                 PaneContainer(items: library?.assets, icon: Pane.photos.icon, emptyTitle: "No Photos") { _ in
                     HStack(spacing: 0) {
@@ -259,6 +264,27 @@ struct PhotosView: View {
         }
     }
 
+    private func airdrop() {
+        let visible = groups.flatMap(\.assets)
+        let assets = (selection.isEmpty ? visible : visible.filter { selection.contains($0.id) }).filter(\.hasOriginal)
+        guard !assets.isEmpty else {
+            model.notice = "The selected items have no originals in this backup."
+            return
+        }
+        let backup = backup
+        model.airdrop("Preparing AirDrop (\(assets.count) items)") { progress in
+            var urls: [URL] = []
+            urls.reserveCapacity(assets.count)
+            for (index, asset) in assets.enumerated() {
+                if !progress(Double(index) / Double(assets.count), asset.filename) { throw ExportCancelled() }
+                if let url = backup.localURL("CameraRollDomain", asset.path, materialize: backup.isEncrypted) {
+                    urls.append(url)
+                }
+            }
+            return urls
+        }
+    }
+
     private func export() {
         let visible = groups.flatMap(\.assets)
         let assets = selection.isEmpty ? visible : visible.filter { selection.contains($0.id) }
@@ -371,6 +397,7 @@ struct QuickLookView: View {
                     }
                     Spacer()
                     if asset.hasOriginal {
+                        Button("AirDrop", action: airdrop)
                         Button("Save…", action: save)
                     }
                     Text("Space / Esc").font(.caption).foregroundStyle(.white.opacity(0.4))
@@ -406,6 +433,17 @@ struct QuickLookView: View {
                 image = await backup.thumbnails.image(domain: "CameraRollDomain", path: asset.hasOriginal ? asset.path : (asset.thumbPath ?? asset.path), maxPixel: 3200)
             }
             loaded = true
+        }
+    }
+
+    private func airdrop() {
+        let backup = backup, asset = asset
+        Task {
+            guard let url = await Task.detached(operation: { backup.localURL("CameraRollDomain", asset.path, materialize: backup.isEncrypted) }).value else {
+                NSSound.beep()
+                return
+            }
+            AirDrop.share([url])
         }
     }
 

@@ -210,9 +210,41 @@ struct AttachmentView: View {
             }
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("AirDrop") { airdrop() }
+            Button("Save As…") { save() }
+        }
         .task(id: attachment) {
             guard attachment.isImage || attachment.isVideo else { return }
             image = await backup.thumbnails.image(domain: attachment.domain, path: attachment.path, maxPixel: 480)
+        }
+    }
+
+    private func airdrop() {
+        let backup = backup
+        Task {
+            guard let url = await Task.detached(operation: { backup.localURL(attachment.domain, attachment.path, materialize: backup.isEncrypted) }).value else {
+                NSSound.beep()
+                return
+            }
+            AirDrop.share([url])
+        }
+    }
+
+    private func save() {
+        guard let destination = Panels.save(name: attachment.name) else { return }
+        let backup = backup
+        Task {
+            guard let url = await Task.detached(operation: { backup.localURL(attachment.domain, attachment.path, materialize: backup.isEncrypted) }).value else {
+                NSSound.beep()
+                return
+            }
+            do {
+                if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
+                try FileManager.default.copyItem(at: url, to: destination)
+            } catch {
+                NSAlert(error: error).runModal()
+            }
         }
     }
 

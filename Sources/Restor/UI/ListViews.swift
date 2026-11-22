@@ -132,6 +132,12 @@ struct AudioListView: View {
                                     Image(systemName: "square.and.arrow.down")
                                 }
                                 .buttonStyle(.borderless).help("Save recording…")
+                                Button {
+                                    airdrop(item)
+                                } label: {
+                                    Image(systemName: "antenna.radiowaves.left.and.right")
+                                }
+                                .buttonStyle(.borderless).help("AirDrop…")
                             }
                             .panel(padding: 10)
                         }
@@ -148,6 +154,17 @@ struct AudioListView: View {
         let name = Exporter.safeName(item.title) + "." + (item.path as NSString).pathExtension
         guard let url = Panels.save(name: name), let entry = backup.entry(item.domain, item.path) else { return }
         do { try backup.extract(entry, to: url) } catch { NSAlert(error: error).runModal() }
+    }
+
+    private func airdrop(_ item: AudioItem) {
+        let backup = backup
+        Task {
+            guard let url = await Task.detached(operation: { backup.localURL(item.domain, item.path, materialize: backup.isEncrypted) }).value else {
+                NSSound.beep()
+                return
+            }
+            AirDrop.share([url])
+        }
     }
 
     private func exportAll() {

@@ -148,6 +148,10 @@ struct FilesView: View {
                 selection = ids
                 export()
             }
+            Button("AirDrop") {
+                selection = ids
+                airdrop()
+            }
             Button("Copy Path") {
                 copyToPasteboard(nodes.filter { ids.contains($0.id) }.map { "\($0.entry.domain)/\($0.entry.path)" }.joined(separator: "\n"))
             }
@@ -167,6 +171,30 @@ struct FilesView: View {
                 let url = await Task.detached { backup.localURL(node.entry, materialize: backup.isEncrypted) }.value
                 if let url { NSWorkspace.shared.open(url) } else { NSSound.beep() }
             }
+        }
+    }
+
+    private func airdrop() {
+        guard let domain else { return }
+        let backup = backup
+        let chosen = nodes.filter { selection.contains($0.id) }.map(\.entry)
+        let base = directory
+        model.airdrop("Preparing AirDrop") { progress in
+            var entries: [ManifestEntry] = []
+            if chosen.isEmpty {
+                entries = base.isEmpty ? backup.entries(domain: domain) : backup.entries(domain: domain, under: base)
+            } else {
+                for entry in chosen { entries += entry.isDirectory ? backup.entries(domain: domain, under: entry.path) : [entry] }
+            }
+            let prefix = base.isEmpty ? "" : base + "/"
+            let files = entries.filter { $0.flags == 1 && $0.path.hasPrefix(prefix) && !$0.path.components(separatedBy: "/").contains("..") }
+            var urls: [URL] = []
+            urls.reserveCapacity(files.count)
+            for (index, entry) in files.enumerated() {
+                if index % 10 == 0, !progress(Double(index) / Double(max(files.count, 1)), entry.name) { throw ExportCancelled() }
+                if let url = backup.localURL(entry, materialize: backup.isEncrypted) { urls.append(url) }
+            }
+            return urls
         }
     }
 
