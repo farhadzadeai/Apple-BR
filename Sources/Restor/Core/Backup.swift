@@ -119,7 +119,7 @@ final class Backup: @unchecked Sendable {
     static let cacheRoot = FileManager.default.temporaryDirectory.appendingPathComponent("Restor")
 
     init(info: BackupInfo, password: String?) throws {
-        Diag.log("backup init start: \(info.deviceName) encrypted=\(info.isEncrypted)") // TEMP-DIAG
+        Diag.log("backup init start: \(Diag.ref(info.deviceName)) encrypted=\(info.isEncrypted)") // TEMP-DIAG
         let initStart = Date() // TEMP-DIAG
         self.info = info
         let fm = FileManager.default

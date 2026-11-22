@@ -150,7 +150,7 @@ final class AppModel {
     }
 
     func select(_ info: BackupInfo) {
-        Diag.log("select backup: \(info.deviceName) encrypted=\(info.isEncrypted)") // TEMP-DIAG
+        Diag.log("select backup: \(Diag.ref(info.deviceName)) encrypted=\(info.isEncrypted)") // TEMP-DIAG
         UserDefaults.standard.set(info.url.path, forKey: lastBackupKey)
         backup = nil
         selected = info
@@ -162,7 +162,7 @@ final class AppModel {
 
     func open(password: String?) {
         guard let info = selected, !isOpening else { return }
-        Diag.log("open start: \(info.deviceName)") // TEMP-DIAG
+        Diag.log("open start: \(Diag.ref(info.deviceName))") // TEMP-DIAG
         let started = Date() // TEMP-DIAG
         isOpening = true
         passwordError = nil

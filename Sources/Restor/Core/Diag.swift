@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import CryptoKit
 
 // TEMP-DIAG: temporary production diagnostics for crash/hang investigation.
 // Everything in this file (and its call sites, marked TEMP-DIAG) must be
@@ -48,9 +49,30 @@ enum Diag {
         }
     }
 
+    // Stable short fingerprint so log entries can be correlated without
+    // recording personal values (device names, identifiers, paths).
+    static func ref(_ string: String) -> String {
+        let digest = SHA256.hash(data: Data(string.utf8))
+        return digest.prefix(4).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static let homeDirectory = NSHomeDirectory()
+    private static let usersPattern = try? NSRegularExpression(pattern: #"/Users/[^/\s]+"#)
+    private static let tempPattern = try? NSRegularExpression(pattern: #"/var/folders/[^\s]+"#)
+
+    private static func sanitize(_ message: String) -> String {
+        var result = message.replacingOccurrences(of: homeDirectory, with: "~")
+        for (pattern, replacement) in [(usersPattern, "~/"), (tempPattern, "/tmp/")] {
+            guard let pattern else { continue }
+            result = pattern.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result),
+                                                      withTemplate: replacement)
+        }
+        return result
+    }
+
     static func log(_ message: String) {
         let thread = Thread.isMainThread ? "main" : "bg"
-        let line = "\(stamp.string(from: Date())) [\(thread)] \(message)\n"
+        let line = "\(stamp.string(from: Date())) [\(thread)] \(sanitize(message))\n"
         queue.async {
             append(line)
         }
